@@ -31,7 +31,7 @@ ui <- fluidPage(
     sidebarPanel(
       p(tags$strong("Seleccionar celda:")),
       leafletOutput(outputId = "myMap"),
-      
+      br(),
       radioButtons("cp", "Seleccionar escenario futuro:",
                    choices = list("RCP 4.5" = "rpc45",
                                   "RCP 8.5" = "rpc85")),
@@ -41,9 +41,11 @@ ui <- fluidPage(
       checkboxInput("loess", "Mostrar línea de tendencia.", value = F),
       br(),
       p("Herramienta elaborada como parte de la colaboración entre el Centro de Investigaciones Geofísicas de la Universidad de Costa Rica (CIGEFI) y el Centro de Recursos Hídricos para Centroamérica y el Caribe de la Universidad Nacional de Costa Rica (HIDROCEC-UNA)."),
+      ("Los GCMs utilizados fueron cambiados de escala"), tags$i("(downscaling)"), ("a 5km x 5km por los investigadores del CIGEFI Hugo Hidalgo y Eric Alfaro. Todos los GCMs utilizados son parte de la fase 5 del"), tags$i("Coupled model intercomparison project"), ("(CMIP5)."),
+      p(""),
       p("La línea de tendencia está calculada por medio de una regresión local (LOESS)."),
       br(),
-      p("App elaborada en R-Shiny por Guillermo Durán, HIDROCEC-UNA."),
+      ("App elaborada en R-Shiny por Guillermo Durán, HIDROCEC-UNA. El código de la herramienta se puede acceder en"), tags$a(href="https://github.com/GuiAlDuS/GCMsChorotega/blob/master/GCMsChorotegaApp/app.r", "GitHub"), ("."),
       p("Última actualización 2-3-2018.")
       ),
       
@@ -77,7 +79,7 @@ server <- function(input,output,session) {
   
   observeEvent( input$myMap_shape_click, ignoreNULL = T, ignoreInit = T, {
     
-    # If already selected, first remove previous selection
+    # Eliminar selección anterior si existiese
     if(length(click.list)>0)
     {
       remove_id = click.list$ids
@@ -93,9 +95,9 @@ server <- function(input,output,session) {
 
     }
     
-    # add current selection
+    # Agregar selección actual
     click <- input$myMap_shape_click
-    click.list$ids <- click$id  # we only store the last click now!
+    click.list$ids <- click$id  # solo guardar último click
     lines.of.interest <- gridcells[ which( gridcells$id %in% click.list$ids ) , ]
 
     if( is.null( click$id ) ){
