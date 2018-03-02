@@ -25,10 +25,11 @@ grid_arrange_shared_legend <- function(...) {
 
 
 ui <- fluidPage(
-  titlePanel("Exploración gráfica de modelos climáticos globales (GCMs) para la región Chorotega."),
+  titlePanel("Exploración gráfica de modelos climáticos globales (GCMs) para la región Chorotega. Costa Rica."),
   
   sidebarLayout(
     sidebarPanel(
+      p(tags$strong("Seleccionar celda:")),
       leafletOutput(outputId = "myMap"),
       
       radioButtons("cp", "Seleccionar escenario futuro:",
@@ -38,9 +39,14 @@ ui <- fluidPage(
       sliderInput("aNo", "Seleccionar periodo de años:",
                   min = 2000, max = 2100, value = c(2030, 2060), step = 5, sep = ""),
       checkboxInput("loess", "Mostrar línea de tendencia.", value = F),
-      submitButton("Graficar")
+      br(),
+      p("Herramienta elaborada como parte de la colaboración entre el Centro de Investigaciones Geofísicas de la Universidad de Costa Rica (CIGEFI) y el Centro de Recursos Hídricos para Centroamérica y el Caribe de la Universidad Nacional de Costa Rica (HIDROCEC-UNA)."),
+      p("La línea de tendencia está calculada por medio de una regresión local (LOESS)."),
+      br(),
+      p("App elaborada en R-Shiny por Guillermo Durán, HIDROCEC-UNA."),
+      p("Última actualización 2-3-2018.")
       ),
-    
+      
     mainPanel(
       plotOutput("grafico1"))
   )
@@ -77,11 +83,14 @@ server <- function(input,output,session) {
       remove_id = click.list$ids
       lines.of.interest <- gridcells[ which( gridcells$id %in% remove_id) , ]
       leafletProxy( mapId = "myMap" ) %>%
-        addPolylines( data = lines.of.interest
-                      , layerId = lines.of.interest@data$id
-                      , color = "#444444"
-                      , weight = 0.5
-                      , opacity = 0.5)
+        addPolygons(data = lines.of.interest, 
+                    weight = 0.5, 
+                    fillOpacity = 0.2, 
+                    opacity = 0.5, 
+                    color = "#444444",
+                    layerId = lines.of.interest@data$id
+        )
+
     }
     
     # add current selection
@@ -91,13 +100,13 @@ server <- function(input,output,session) {
 
     if( is.null( click$id ) ){
       req( click$id )
-    } else if ( !click$id %in% lines.of.interest@data$id ){
+    } else {
       leafletProxy( mapId = "myMap" ) %>%
-        addPolylines( data = lines.of.interest
-                      , layerId = lines.of.interest@data$id
-                      , color = "#6cb5bc"
-                      , weight = 1
-                      , fillOpacity = 0.5
+        addPolylines(data = lines.of.interest,
+                     layerId = lines.of.interest@data$id,
+                     color = "red",
+                     weight = 5,
+                     opacity = 1
         ) 
     }
   })
@@ -149,7 +158,7 @@ server <- function(input,output,session) {
         stat_smooth(data=seleccion, method="loess", level=0.8, se=F) +
         labs(x = "Años", y = "Temperatura (C)") + 
         labs(
-          title = paste("Promedio anual de temperatura diaria")
+          title = paste("Promedio anual de temperatura mensual")
           )
         g2 <- ggplot(seleccion, aes(x = Year, y = pr_year)) + geom_point(aes(colour = Model)) +
         stat_smooth(data=seleccion, method="loess", level=0.8, se=F) +
