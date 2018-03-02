@@ -126,7 +126,7 @@ server <- function(input,output,session) {
           stat_smooth(data=seleccion, method="loess", level=0.8, se=F) +
           labs(x = "Años", y = "Temperatura (C)") + 
           labs(
-            title = paste("Promedio anual de temperatura diaria")
+            title = paste("Promedio anual de temperatura mensual")
           )
         g2 <- ggplot(seleccion, aes(x = Year, y = pr_y)) + geom_point(aes(colour = Model)) +
           stat_smooth(data=seleccion, method="loess", level=0.8, se=F) +
@@ -140,7 +140,7 @@ server <- function(input,output,session) {
         g3 <- ggplot(seleccion, aes(x = Year, y = tas_m)) + geom_point(aes(colour = Model)) +
           labs(x = "Años", y = "Temperatura (C)") + 
           labs(
-            title = paste("Promedio anual de temperatura diaria")
+            title = paste("Promedio anual de temperatura mensual")
           )
         g4 <- ggplot(seleccion, aes(x = Year, y = pr_y)) + geom_point(aes(colour = Model)) +
           labs(x = "Años", y = "Lluvia (mm)") + 
@@ -174,7 +174,7 @@ server <- function(input,output,session) {
           g3 <- ggplot(seleccion, aes(x = Year, y = tas_mean)) + geom_point(aes(colour = Model)) +
             labs(x = "Años", y = "Temperatura (C)") + 
             labs(
-              title = paste("Promedio anual de temperatura diaria")
+              title = paste("Promedio anual de temperatura mensual")
               )
           g4 <- ggplot(seleccion, aes(x = Year, y = pr_year)) + geom_point(aes(colour = Model)) +
             labs(x = "Años", y = "Lluvia (mm)") + 
