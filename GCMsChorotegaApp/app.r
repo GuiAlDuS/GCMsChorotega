@@ -1,13 +1,13 @@
 library(shiny)
-library(dplyr)
 library(ggplot2)
 library(gridExtra)
 library(grid)
 library(rgdal)
 library(leaflet)
+library(data.table)
 
-anual_GCMs <- readRDS("anual_CIGEFI_ID.rds")
-anual_GCMs_Ch <- readRDS("anual_CIGEFI_TodoChorotega.rds")
+anual_GCMs <- data.table(readRDS("anual_CIGEFI_ID.rds"))
+anual_GCMs_Ch <- data.table(readRDS("anual_CIGEFI_TodoChorotega.rds"))
 gridcells <- readOGR(dsn = ".", layer = "Celdas_ubicaciones")
 
 grid_arrange_shared_legend <- function(...) {
@@ -47,18 +47,19 @@ ui <- fluidPage(
 )
 
 server <- function(input,output,session) {
+
   #mapa para selecciones
   foundational.map <- function(){
     leaflet() %>%  
       addTiles() %>%
       addPolygons(data = gridcells, 
-                  weight = 1, 
-                  fillOpacity = 0, 
+                  weight = 0.5, 
+                  fillOpacity = 0.2, 
                   opacity = 0.5, 
-                  color = "#000000",
+                  color = "#444444",
                   layerId = gridcells$id, 
                   group = "click.list") %>% 
-      setView(lng=-85.375, lat=10.625, zoom = 9)
+      setView(lng=-85.375, lat=10.625, zoom = 8)
   }
   
   myMap_reval <- reactiveVal(foundational.map())
@@ -78,9 +79,9 @@ server <- function(input,output,session) {
       leafletProxy( mapId = "myMap" ) %>%
         addPolylines( data = lines.of.interest
                       , layerId = lines.of.interest@data$id
-                      , color = "#000000"
-                      , weight = 2
-                      , opacity = 0.2)
+                      , color = "#444444"
+                      , weight = 0.5
+                      , opacity = 0.5)
     }
     
     # add current selection
@@ -90,23 +91,24 @@ server <- function(input,output,session) {
 
     if( is.null( click$id ) ){
       req( click$id )
-    } else if( !click$id %in% lines.of.interest@data$id ){
+    } else if ( !click$id %in% lines.of.interest@data$id ){
       leafletProxy( mapId = "myMap" ) %>%
         addPolylines( data = lines.of.interest
                       , layerId = lines.of.interest@data$id
                       , color = "#6cb5bc"
-                      , weight = 5
-                      , opacity = 1
+                      , weight = 1
+                      , fillOpacity = 0.5
         ) 
     }
   })
-    
+
   #graficos
   output$grafico1 <- renderPlot({
     #funciones de selección
     if(is.null(input$myMap_shape_click)) {
-      seleccion <- anual_GCMs_Ch %>% 
-        filter(Scenario == input$cp & Year >= input$aNo[1] & Year <= input$aNo[2])
+      seleccion <- anual_GCMs_Ch[Scenario == input$cp & 
+                                   Year >= input$aNo[1] & 
+                                   Year <= input$aNo[2]]
       if (input$loess == T) {
         #funciones generales de gráfico 
         g1 <- ggplot(seleccion, aes(x = Year, y = tas_m)) + geom_point(aes(colour = Model)) +
@@ -138,10 +140,9 @@ server <- function(input,output,session) {
       }
       
     } else {
-      seleccion <- anual_GCMs %>% 
-        filter(as.integer(input$myMap_shape_click[1]) == id & 
-                 Scenario == input$cp & 
-                 Year >= input$aNo[1] & Year <= input$aNo[2])
+      seleccion <- anual_GCMs[(input$myMap_shape_click[1]) == id & 
+                                Scenario == input$cp & 
+                                Year >= input$aNo[1] & Year <= input$aNo[2]] 
       if (input$loess == T) {
         #funciones generales de gráfico 
         g1 <- ggplot(seleccion, aes(x = Year, y = tas_mean)) + geom_point(aes(colour = Model)) +
