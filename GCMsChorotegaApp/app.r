@@ -59,7 +59,7 @@ server <- function(input,output,session) {
                   color = "#444444",
                   layerId = gridcells$id, 
                   group = "click.list") %>% 
-      setView(lng=-85.375, lat=10.625, zoom = 8)
+      setView(lng=-85.186, lat=10.451, zoom = 8)
   }
   
   myMap_reval <- reactiveVal(foundational.map())
