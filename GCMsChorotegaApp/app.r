@@ -12,6 +12,7 @@ gridcells <- readOGR(dsn = ".", layer = "Celdas_ubicaciones")
 percentiles <- data.table(readRDS("percentiles_CIGEFI.rds"))
 percentilesChorotega <- readRDS("percentiles_CIGEFI_TodoChorotega.rds")
 mensual_GCMs <- data.table(readRDS("mensual_CIGEFI.rds"))
+mensual_GCMsChorotega <- data.table(readRDS("mensual_CIGEFI_TodoChorotega.rds"))
 
 grid_arrange_shared_legend <- function(...) {
   plots <- list(...)
@@ -53,7 +54,7 @@ ui <- fluidPage(
       p(""),
       ("Herramienta creada en R-Shiny por Guillermo Durán, HIDROCEC-UNA. El código de la herramienta se puede acceder en"), tags$a(href="https://github.com/GuiAlDuS/GCMsChorotega/blob/master/GCMsChorotegaApp/app.r", "GitHub"), ("."),
       p(""),
-      p("Última actualización 5-3-2018.")
+      p("Última actualización 6-3-2018.")
       ),
       
     mainPanel(
@@ -128,12 +129,12 @@ server <- function(input,output,session) {
                                    Year >= input$aNo[1] & 
                                    Year <= input$aNo[2]]
       
-#      sel_mes <- mensual_GCMs[Scenario == input$cp&
-#                                ini_year >= input$aNo[1] & 
-#                                ini_year <= input$aNo[2]]
+      sel_mes <- mensual_GCMsChorotega[Scenario == input$cp&
+                                ini_year >= input$aNo[1] & 
+                                ini_year <= input$aNo[2]]
      
       if (input$loess == T) {
-        #funciones generales de gráfico 
+        #grafico con línea de tenencia 
         g1 <- ggplot(seleccion, aes(x = Year, y = tas_m)) + geom_jitter(aes(colour = Model)) +
           stat_smooth(data=seleccion, method="loess", level=0.5, se=F) +
           geom_hline(yintercept = percentilesChorotega$tas_95pctl, linetype="dashed") +
@@ -150,21 +151,25 @@ server <- function(input,output,session) {
           labs(
             title = paste("Total de lluvia anual")
           )
-#        g3 <- ggplot(sel_mes, aes(x = as.integer(Month), y = pr_mean)) + geom_point(aes(colour = Model)) +
-#          labs(x = "Mes", y = "Lluvia (mm)") + 
-#          stat_smooth(data=sel_mes, method="loess", level=0.8, se=F) +
-#          labs(
-#            title = paste("Total de lluvia mensual")
-#          )
-#        g4 <- ggplot(sel_mes, aes(x = as.integer(Month), y = tas_mean)) + geom_point(aes(colour = Model)) +
-#          labs(x = "Mes", y = "Temperatura (C)") + 
-#          stat_smooth(data=sel_mes, method="loess", level=0.8, se=F) +
-#          labs(
-#            title = paste("Promedio de temperatura mensual")
-#          )
-        grid_arrange_shared_legend(g1,g2)
+        g3 <- ggplot(sel_mes, aes(x = Month, y = pr_mean)) + geom_jitter(aes(colour = Model)) +
+          geom_smooth(data=sel_mes, method="loess", level=0.5, se=F) +
+          scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
+          labs(x = "Mes", y = "Lluvia (mm)") + 
+          stat_smooth(data=sel_mes, method="loess", level=0.8, se=F) +
+          labs(
+            title = paste("Total de lluvia mensual")
+          )
+        g4 <- ggplot(sel_mes, aes(x = Month, y = tas_mean)) + geom_jitter(aes(colour = Model)) +
+          geom_smooth(data=sel_mes, method="loess", level=0.5, se=F) +
+          scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
+          labs(x = "Mes", y = "Temperatura (C)") + 
+          stat_smooth(data=sel_mes, method="loess", level=0.8, se=F) +
+          labs(
+            title = paste("Promedio de temperatura mensual")
+          )
+        grid_arrange_shared_legend(g1,g3,g2,g4)
       } else {
-        #gráfico con línea de tendencia
+        #gráfico sin línea de tendencia
         g1 <- ggplot(seleccion, aes(x = Year, y = tas_m)) + geom_jitter(aes(colour = Model)) +
           labs(x = "Años", y = "Temperatura (C)") + 
           geom_hline(yintercept = percentilesChorotega$tas_95pctl, linetype="dashed") +
@@ -179,17 +184,19 @@ server <- function(input,output,session) {
           labs(
             title = paste("Total de lluvia anual")
           )
-#        g3 <- ggplot(sel_mes, aes(x = as.integer(Month), y = pr_mean)) + geom_point(aes(colour = Model)) +
-#          labs(x = "Mes", y = "Lluvia (mm)") + 
-#          labs(
-#            title = paste("Total de lluvia mensual")
-#          )
-#        g4 <- ggplot(sel_mes, aes(x = as.integer(Month), y = tas_mean)) + geom_point(aes(colour = Model)) +
-#          labs(x = "Mes", y = "Temperatura (C)") + 
-#          labs(
-#            title = paste("Promedio de temperatura mensual")
-#          )
-        grid_arrange_shared_legend(g1,g2)
+        g3 <- ggplot(sel_mes, aes(x = Month, y = pr_mean)) + geom_jitter(aes(colour = Model)) +
+          scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
+          labs(x = "Mes", y = "Lluvia (mm)") + 
+          labs(
+            title = paste("Total de lluvia mensual")
+          )
+        g4 <- ggplot(sel_mes, aes(x = Month, y = tas_mean)) + geom_jitter(aes(colour = Model)) +
+          scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
+          labs(x = "Mes", y = "Temperatura (C)") + 
+          labs(
+            title = paste("Promedio de temperatura mensual")
+          )
+        grid_arrange_shared_legend(g1,g3,g2,g4)
       }
       
     } else {

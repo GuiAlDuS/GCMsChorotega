@@ -20,6 +20,8 @@ tbl <- map(archivos, read.table, sep="", header = TRUE) %>%
 tbl <- map(archivos, read.table, sep="", header = TRUE) %>% bind_rows()
 saveRDS(tbl, "datoscrudos.rds")
 
+dbWriteTable(con, "tbl_chorotega", tbl)
+
 tbl_tas_year <- tbl %>% filter(Variable == "tas") %>% group_by(Year, Model, Scenario, Longitude, Latitude) %>% summarise(tas_mean = mean(Value))
 tbl_pr_year <- tbl %>% filter(Variable == "pr") %>% group_by(Year, Model, Scenario, Longitude, Latitude) %>% summarise(pr_year = sum(Value))
 
@@ -103,31 +105,50 @@ percentiles_CIGEFI_TodoChorotega <- anual_CIGEFI_TodoChorotega %>%
 saveRDS(percentiles_CIGEFI_TodoChorotega, "percentiles_CIGEFI_TodoChorotega.rds")
 
 #creación de tablas para variabilidad mensual.
+library(odbc)
+con <- dbConnect(odbc::odbc(), "PostgreSQL_SIG")
+tbl<- tbl(con, "tbl_chorotega")
+
 tbl_month_pr <- tbl %>% filter(Variable == "pr") %>% mutate(pr_month = Value) 
 tbl_month_tas <- tbl %>% filter(Variable == "tas") %>% mutate(tas_month = Value)
-tbl_month <- tbl_month_pr %>% inner_join(tbl_month_tas, by = c("Year", "Month", "Model", "Scenario", "Longitude", "Latitude")) 
-tbl_month <- tbl_month%>% select(Year, Month, Model, Scenario, Longitude, Latitude, tas_month, pr_month)
-tbl_month_gt2000 <- tbl_month %>% filter(Year >= 2000) 
+tbl_month <- tbl_month_pr %>% inner_join(tbl_month_tas, by = c("Year", "Month", "Model", "Scenario", "Longitude", "Latitude")) %>% select(Year, Month, Model, Scenario, Longitude, Latitude, tas_month, pr_month)
 
-tbl_month_all <- tbl_month %>% group_by(Month, Year, Model, Scenario) %>% summarise(tas_m = mean(tas_month), pr_y = mean(pr_month))
-tbl_month_all_gt2000 <- tbl_month_all %>% filter(Year >= 2000)
+tbl_month_gt2000 <- tbl_month %>% filter(Year >= 2000)
+head(tbl_month_gt2000)
 
 tbl_month_gt2000_5years <- tbl_month_gt2000 %>% 
   group_by(Year %/% 5, Month, Longitude, Latitude, Model, Scenario) %>% 
   summarise(tas_mean = mean(tas_month), pr_mean = mean(pr_month)) %>% rename(period = `Year%/%5`)
+head(tbl_month_gt2000_5years)
 
-periods_5years <- tbl_month_gt2000_5years %>% group_by(period) %>% summarise(n())
+periods_5years <- tbl_month_gt2000_5years %>% group_by(as.integer(period)) %>% summarise(n())
+head(periods_5years)
+
 years5 <- as.data.frame(seq(2000, 2095, 5))
 years5 <-years5 %>% rename(ini_year = `seq(2000, 2095, 5)`)
 years5 <- cbind(years5, periods_5years)
 
-tbl_month_gt2000_5years <- tbl_month_gt2000_5years %>% 
-  left_join(years5, by = "period") %>% select(-`n()`)
-
 tbl_month_gt2000_5years_id <- left_join(tbl_month_gt2000_5years, tabla_shape, by = c("Latitude" = "Lon", "Longitude" = "Lat"))
 tbl_month_gt2000_5years_id <- tbl_month_gt2000_5years_id %>% ungroup() %>% select(-period, -Longitude, -Latitude, -xmin, -xmax, -ymin, -ymax)
 
-saveRDS(tbl_month_gt2000_5years_id, "mensual_CIGEFI.rds")
+saveRDS(collect(tbl_month_gt2000_5years), "mensual_CIGEFI.rds")
 
-tbl_month_gt2000_all <- tbl_month_gt2000_5years_id %>% group_by(Month, Model, Scenario) %>% summarise(tas_m = mean(tas_mean), pr_y = mean(pr_year))
+#para todas las celdas:
+tbl_month_gt2000_5years_all <- tbl_month_gt2000 %>% 
+  group_by(Year %/% 5, Month, Model, Scenario) %>% 
+  summarise(tas_mean = mean(tas_month), pr_mean = mean(pr_month)) %>% rename(period = `Year%/%5`)
+
+fwrite(collect(tbl_month_gt2000_5years_all), file = "mensual_CIGEFI.csv")
+tbl_month_gt2000_5years_all_R <- collect(tbl_month_gt2000_5years_all)
+
+periods_5years_all <- tbl_month_gt2000_5years_all_R %>% group_by(as.integer(period)) %>% summarise(n()) %>% rename(period = `as.integer(period)`)
+years5_all <- cbind(years5, periods_5years_all)
+
+tbl_month_gt2000_5years_all_ini_year <- left_join(tbl_month_gt2000_5years_all_R, years5_all, by="period") %>% ungroup() %>%
+  select(-`n()`, -period)
+
+saveRDS(tbl_month_gt2000_5years_all_ini_year, "mensual_CIGEFI_TodoChorotega.rds")
+
+
+
 
