@@ -6,6 +6,8 @@ library(data.table)
 archivos <- list.files("proyecciones_chorotega", full.names = T)
 
 #este no
+tbl <- rbindlist(lapply(archivos, fread, header="auto"))
+
 tbl <- rbindlist(lapply(archivos, fread), idcol = "origen")
 tbl[, origen := factor(origen, labels = basename(archivos))]
 
@@ -14,6 +16,9 @@ tbl <- map(archivos, read.table, sep="", header = TRUE) %>%
   setNames(archivos) %>% 
   bind_rows(.id = "grp")
 
+#version sin id
+tbl <- map(archivos, read.table, sep="", header = TRUE) %>% bind_rows()
+saveRDS(tbl, "datoscrudos.rds")
 
 tbl_tas_year <- tbl %>% filter(Variable == "tas") %>% group_by(Year, Model, Scenario, Longitude, Latitude) %>% summarise(tas_mean = mean(Value))
 tbl_pr_year <- tbl %>% filter(Variable == "pr") %>% group_by(Year, Model, Scenario, Longitude, Latitude) %>% summarise(pr_year = sum(Value))
@@ -33,13 +38,6 @@ test <- tbl_year %>% filter(Year >= 2030 & Year <= 2060 & Scenario == "rpc45") %
 
 ggplot(test, aes(Year, tas_mean)) + geom_point(data=test, aes(colour = Model)) + stat_smooth(data=test, method="loess", level=0.8, se=F)
 
-
-gridcells <- readLines("CeldasDatos_ubicaciones.geojson") %>% paste(collapse = "\n")
-
-leaflet() %>% addGeoJSON(gridcells, weight = 0.5, fillOpacity = 0.2, color = "#444444") %>% 
-  addTiles() %>%
-  setView(lng=-85.375, lat=10.625, zoom = 9)
-                                               
 
 library(rgdal)
 gridcells <- readOGR(dsn = ".", layer = "Celdas_ubicaciones")
@@ -103,3 +101,33 @@ percentiles_CIGEFI_TodoChorotega <- anual_CIGEFI_TodoChorotega %>%
             "pr_5pct"=quantile(pr_y, probs=0.05)
             )
 saveRDS(percentiles_CIGEFI_TodoChorotega, "percentiles_CIGEFI_TodoChorotega.rds")
+
+#creación de tablas para variabilidad mensual.
+tbl_month_pr <- tbl %>% filter(Variable == "pr") %>% mutate(pr_month = Value) 
+tbl_month_tas <- tbl %>% filter(Variable == "tas") %>% mutate(tas_month = Value)
+tbl_month <- tbl_month_pr %>% inner_join(tbl_month_tas, by = c("Year", "Month", "Model", "Scenario", "Longitude", "Latitude")) 
+tbl_month <- tbl_month%>% select(Year, Month, Model, Scenario, Longitude, Latitude, tas_month, pr_month)
+tbl_month_gt2000 <- tbl_month %>% filter(Year >= 2000) 
+
+tbl_month_all <- tbl_month %>% group_by(Month, Year, Model, Scenario) %>% summarise(tas_m = mean(tas_month), pr_y = mean(pr_month))
+tbl_month_all_gt2000 <- tbl_month_all %>% filter(Year >= 2000)
+
+tbl_month_gt2000_5years <- tbl_month_gt2000 %>% 
+  group_by(Year %/% 5, Month, Longitude, Latitude, Model, Scenario) %>% 
+  summarise(tas_mean = mean(tas_month), pr_mean = mean(pr_month)) %>% rename(period = `Year%/%5`)
+
+periods_5years <- tbl_month_gt2000_5years %>% group_by(period) %>% summarise(n())
+years5 <- as.data.frame(seq(2000, 2095, 5))
+years5 <-years5 %>% rename(ini_year = `seq(2000, 2095, 5)`)
+years5 <- cbind(years5, periods_5years)
+
+tbl_month_gt2000_5years <- tbl_month_gt2000_5years %>% 
+  left_join(years5, by = "period") %>% select(-`n()`)
+
+tbl_month_gt2000_5years_id <- left_join(tbl_month_gt2000_5years, tabla_shape, by = c("Latitude" = "Lon", "Longitude" = "Lat"))
+tbl_month_gt2000_5years_id <- tbl_month_gt2000_5years_id %>% ungroup() %>% select(-period, -Longitude, -Latitude, -xmin, -xmax, -ymin, -ymax)
+
+saveRDS(tbl_month_gt2000_5years_id, "mensual_CIGEFI.rds")
+
+tbl_month_gt2000_all <- tbl_month_gt2000_5years_id %>% group_by(Month, Model, Scenario) %>% summarise(tas_m = mean(tas_mean), pr_y = mean(pr_year))
+
