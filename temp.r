@@ -186,3 +186,19 @@ ggplot() + geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Mode
   scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
   labs(x = "Mes", y = "Lluvia (mm)") + 
   labs(title = paste("Total de lluvia mensual"))
+
+
+#-----#
+mensual_GCMs <- data.table(readRDS("mensual_CIGEFI.rds"))
+percentiles_mes <- readRDS("percentiles_CIGEFI_mensual.rds")
+
+sel_mes <- mensual_GCMs[Scenario == "rpc45" & ini_year >= 2030 & ini_year <= 2050 & id == 103]
+sel_percentiles_mes <- percentiles_mes %>% dplyr::filter(103 == id)
+
+ggplot() + geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Model)) +
+  geom_smooth(data=sel_mes, aes(x = Month, y = pr_mean), method="loess", level=0.5, se=F) +
+  geom_linerange(data=sel_percentiles_mes, aes(x=Month, ymin=pr_5pct, ymax=pr_95pctl), linetype="dashed") +
+  scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
+  labs(x = "Mes", y = "Lluvia (mm)") + 
+  scale_colour_discrete(name="Experimental\nCondition") +
+  labs(title = paste("Total de lluvia mensual"))
