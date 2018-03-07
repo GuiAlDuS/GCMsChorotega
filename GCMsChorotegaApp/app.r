@@ -6,12 +6,12 @@ library(rgdal)
 library(leaflet)
 library(data.table)
 
-anual_GCMs <- data.table(readRDS("anual_CIGEFI_ID.rds"))
+anual_GCMs <- fread("anual_CIGEFI_ID.csv")
 anual_GCMs_Ch <- data.table(readRDS("anual_CIGEFI_TodoChorotega.rds"))
 gridcells <- readOGR(dsn = ".", layer = "Celdas_ubicaciones")
 percentiles <- data.table(readRDS("percentiles_CIGEFI.rds"))
 percentilesChorotega <- readRDS("percentiles_CIGEFI_TodoChorotega.rds")
-mensual_GCMs <- data.table(readRDS("mensual_CIGEFI.rds"))
+mensual_GCMs <- fread("mensual_CIGEFI.csv")
 mensual_GCMsChorotega <- data.table(readRDS("mensual_CIGEFI_TodoChorotega.rds"))
 percentiles_mes <- readRDS("percentiles_CIGEFI_mensual.rds")
 percentiles_mesChorotega <- readRDS("percentiles_CIGEFI_mensual_TodoChorotega.rds")
@@ -43,7 +43,7 @@ ui <- fluidPage(
                                   "RCP 8.5" = "rpc85")),
       
       sliderInput("aNo", "Seleccionar periodo de años:",
-                  min = 2000, max = 2100, value = c(2030, 2060), step = 5, sep = ""),
+                  min = 2000, max = 2100, value = c(2030, 2060), step = 10, sep = ""),
       checkboxInput("loess", "Mostrar línea de tendencia.", value = F),
       br(),
       h5("Nota:"),
