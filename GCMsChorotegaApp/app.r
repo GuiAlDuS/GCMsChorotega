@@ -50,6 +50,8 @@ ui <- fluidPage(
       p("- Las líneas punteadas representan el rango entre los percentiles 5 y 95 de los datos históricos modelados (1979 a 1999)."),
       p("- Si no se selecciona una celda, los gráficos muestran los valores para el área que cubre todas las celdas."),
       p("- La línea de tendencia está calculada por medio de una regresión local (LOESS)."),
+      ("- "), tags$a(href="http://www.oscc.gob.es/es/general/salud_cambio_climatico/Nuevos_escenarios_emision_RCPs.htm", "En este enlace"),(" se encuentra información en español sobre los escenarios"), tags$i("Representative Concentration Pathways"),("(RCP) del Quinto Informe del IPCC."),
+      br(),
       br(),
       p("Esta herramienta se elaboró como parte de la colaboración entre el Centro de Investigaciones Geofísicas de la Universidad de Costa Rica (CIGEFI) y el Centro de Recursos Hídricos para Centroamérica y el Caribe de la Universidad Nacional de Costa Rica (HIDROCEC)."),
       ("Los GCMs utilizados se seleccionaron con base en el estudio"),tags$a(href="http://onlinelibrary.wiley.com/doi/10.1002/joc.4216/abstract", tags$i("Skill of CMIP5 climate models in reproducing 20th century basic climate features in Central America")), 
@@ -58,7 +60,7 @@ ui <- fluidPage(
       p(""),
       ("La herramienta fue desarrollada en"),tags$a(href="https://shiny.rstudio.com", "Shiny"),("por Guillermo Durán del HIDROCEC. El código de la herramienta se puede acceder en"), tags$a(href="https://github.com/GuiAlDuS/GCMsChorotega/blob/master/GCMsChorotegaApp/app.r", "GitHub"),("."),
       p(""),
-      p("Última actualización 6-3-2018.")
+      p("Última actualización 7-3-2018.")
       ),
       
     mainPanel(
