@@ -149,6 +149,40 @@ tbl_month_gt2000_5years_all_ini_year <- left_join(tbl_month_gt2000_5years_all_R,
 
 saveRDS(tbl_month_gt2000_5years_all_ini_year, "mensual_CIGEFI_TodoChorotega.rds")
 
+#calcular 5 y 95 percentiles para datos históricos
+tbl_month_lt2000 <- collect( tbl_month %>% filter(Year < 2000))
+  
+tbl_percentiles_mes <- tbl_percentiles_mes %>%  
+  group_by(Month, Longitude, Latitude) %>%
+  summarise("tas_95pctl"=quantile(tas_month, probs=0.95),
+            "tas_5pctl"=quantile(tas_month, probs=0.05),
+            "pr_95pctl"=quantile(pr_month, probs=0.95),
+            "pr_5pct"=quantile(pr_month, probs=0.05))
+
+tbl_percentiles_mes <- left_join(tbl_percentiles_mes, tabla_shape, by = c("Latitude" = "Lon", "Longitude" = "Lat"))
+saveRDS(tbl_percentiles_mes, "percentiles_CIGEFI_mensual.rds")
+
+tbl_percentiles_mes_all <- tbl_month_lt2000 %>% group_by(Month) %>% 
+  summarise("tas_95pctl"=quantile(tas_month, probs=0.95),
+            "tas_5pctl"=quantile(tas_month, probs=0.05),
+            "pr_95pctl"=quantile(pr_month, probs=0.95),
+            "pr_5pct"=quantile(pr_month, probs=0.05))
+
+saveRDS(tbl_percentiles_mes_all, "percentiles_CIGEFI_mensual_TodoChorotega.rds")
 
 
+#prueba con geom_linerange
 
+mensual_GCMsChorotega <- data.table(readRDS("mensual_CIGEFI_TodoChorotega.rds"))
+percentiles_mesChorotega <- readRDS("percentiles_CIGEFI_mensual_TodoChorotega.rds")
+
+sel_mes <- mensual_GCMsChorotega[Scenario == "rpc45" & ini_year >= 2030 & ini_year <= 2050]
+
+ggplot() + geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Model)) +
+  geom_smooth(data=sel_mes, aes(x = Month, y = pr_mean), method="loess", level=0.5, se=F) +
+  geom_linerange(data=percentiles_mesChorotega, aes(x=Month, 
+                 ymin=pr_5pct, 
+                 ymax=pr_95pctl), linetype="dashed") +
+  scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
+  labs(x = "Mes", y = "Lluvia (mm)") + 
+  labs(title = paste("Total de lluvia mensual"))
