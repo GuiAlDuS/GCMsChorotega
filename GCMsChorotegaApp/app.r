@@ -57,7 +57,7 @@ ui <- fluidPage(
       p(""),
       p(""),
       p("La herramienta se elaboró como parte de la colaboración entre el Centro de Investigaciones Geofísicas de la Universidad de Costa Rica (CIGEFI) y el Centro de Recursos Hídricos para Centroamérica y el Caribe de la Universidad Nacional de Costa Rica (HIDROCEC)."),
-      p("Herramienta desarrollada por Guillermo Durán (HIDROCEC) en R/Shiny."),
+      ("Herramienta desarrollada por"), tags$a(href="https://github.com/GuiAlDuS", "Guillermo Durán"),("(HIDROCEC) en R/Shiny."),
       p(""),
       p("Última actualización 7-3-2018.")
       ),
