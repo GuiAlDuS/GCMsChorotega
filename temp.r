@@ -66,9 +66,9 @@ tbl_year_id <- left_join(tbl_year, tabla_shape, by = c("Latitude" = "Lon", "Long
 tbl_year_id_gt2000 <- tbl_year_id %>% filter(Year >= 2000)
 saveRDS(tbl_year_id_gt2000, "anual_CIGEFI_ID.rds")
 
-test <- tbl_year_id %>% filter(Year >= 2030 & Year <= 2060 & Scenario == "rpc45") %>% group_by(Year, Model) %>% summarise(tas_mean = mean(tas_mean))
+test <- tbl_year %>% filter(Year >= 2030 & Year <= 2060 & Scenario == "rpc45") %>% group_by(Year, Model) %>% summarise(tas_mean = mean(tas_mean))
 
-ggplot(test, aes(Year, tas_mean)) + geom_point(data=test, aes(colour = Model)) + stat_smooth(data=test, method="loess", level=0.8, se=F)
+ggplot(test, aes(Year, tas_mean)) + geom_line(data=test, aes(colour = Model)) + stat_smooth(data=test, method="loess", level=0.8, se=F)
 
 #probando con data.table
 library(data.table)
@@ -195,7 +195,7 @@ percentiles_mesChorotega <- readRDS("percentiles_CIGEFI_mensual_TodoChorotega.rd
 
 sel_mes <- mensual_GCMsChorotega[Scenario == "rpc45" & ini_year >= 2030 & ini_year <= 2050]
 
-ggplot() + geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Model)) +
+ggplot() + geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Model), width = 0.2) +
   geom_smooth(data=sel_mes, aes(x = Month, y = pr_mean), method="loess", level=0.5, se=F) +
   geom_linerange(data=percentiles_mesChorotega, aes(x=Month, 
                  ymin=pr_5pct, 
@@ -204,6 +204,15 @@ ggplot() + geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Mode
   labs(x = "Mes", y = "Lluvia (mm)") + 
   labs(title = paste("Total de lluvia mensual"))
 
+#prueba con boxplots transparentes y puntos encima
+ggplot() + 
+  geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Model), width = 0.15) +
+  geom_boxplot(data = sel_mes, aes(x = Month, y = pr_mean, group = Month), outlier.colour=NA, fill=NA) +
+  #geom_linerange(data=percentiles_mesChorotega, aes(x=Month, ymin=pr_5pct, ymax=pr_95pctl), linetype="dashed")
+  scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
+  labs(x = "Mes", y = "Lluvia (mm)") + 
+  scale_colour_discrete(name="Modelos") +
+  labs(title = paste("Total de lluvia mensual"))
 
 #-----#
 mensual_GCMs <- fread("mensual_CIGEFI.csv")
@@ -219,3 +228,36 @@ ggplot() + geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Mode
   labs(x = "Mes", y = "Lluvia (mm)") + 
   scale_colour_discrete(name="Experimental\nCondition") +
   labs(title = paste("Total de lluvia mensual"))
+
+
+#funcion para hacer todos los gráficos
+
+ggplot() + geom_line(data = test, aes(x = Year, y = tas_mean, colour = Model)) +
+  stat_smooth(data=seleccion, method = "loess", level = 0.5, se = F) +
+  geom_hline(yintercept = percentilesChorotega$tas_95pctl, linetype="dashed") +
+  geom_hline(yintercept = percentilesChorotega$tas_5pctl, linetype="dashed") +
+  labs(x = "Años", y = "Temperatura (C)") + 
+  scale_colour_discrete(name="Modelos") +
+  labs(
+    title = paste("Promedio anual de temperatura mensual")
+
+graficos <- function(datos1, datos2, datos3) {
+  g1 <- ggplot() + ggplot(seleccion, aes(x = Year, y = tas_m)) + geom_jitter(aes(colour = Model), width = 0.25) + 
+    geom_line(aes(colour = Year)) +
+    stat_smooth(data=seleccion, method="loess", level=0.5, se=F) +
+    geom_hline(yintercept = percentilesChorotega$tas_95pctl, linetype="dashed") +
+    geom_hline(yintercept = percentilesChorotega$tas_5pctl, linetype="dashed") +
+    labs(x = "Años", y = "Temperatura (C)") + 
+    scale_colour_discrete(name="Modelos") +
+    labs(
+      title = paste("Promedio anual de temperatura mensual")
+}
+
+
+#tabla con todos los datos desde 1979 hasta 2100 para los modelos con datos para ambos escenarios
+tbl_year_clean <- tbl_year_id %>% filter(Model != "ccsm4_r3i1p1" & Model != "cesm1_cam5_r3i1p1")
+tbl_year_clean %>% group_by(Model) %>% tally()
+fwrite(tbl_year_clean, file = "anual_CIGEFI_ID.csv")
+
+tbl_year_all_clean <- tbl_year_clean %>% group_by(Year, Model, Scenario) %>% summarise(tas_m = mean(tas_mean), pr_y = mean(pr_year))
+saveRDS(tbl_year_all_clean, file = "anual_CIGEFI_TodoChorotega.rds")
