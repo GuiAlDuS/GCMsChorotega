@@ -1,6 +1,6 @@
 library(tidyverse)
 library(leaflet)
-library(microbenchmarkCore)
+library(microbenchmark)
 library(data.table)
 
 archivos <- list.files("proyecciones_chorotega", full.names = T)
@@ -26,23 +26,20 @@ tbl_tas_year <- tbl %>% filter(Variable == "tas") %>% group_by(Year, Model, Scen
 tbl_pr_year <- tbl %>% filter(Variable == "pr") %>% group_by(Year, Model, Scenario, Longitude, Latitude) %>% summarise(pr_year = sum(Value))
 
 tbl_year <- tbl_tas_year %>% inner_join(tbl_pr_year, by = c("Year", "Model", "Scenario", "Longitude", "Latitude"))
-
-tbl_year_all <- tbl_year %>% group_by(Year, Model, Scenario) %>% summarise(tas_m = mean(tas_mean), pr_y = mean(pr_year))
-
 saveRDS(tbl_year, "anual_CIGEFI.rds")
 
-tbl_year <- readRDS("anual_CIGEFI_ID.rds")
-fwrite(tbl_year, file = "anual_CIGEFI_ID.csv")
-
+tbl_year_all <- tbl_year %>% group_by(Year, Model, Scenario) %>% summarise(tas_m = mean(tas_mean), pr_y = mean(pr_year))
 saveRDS(tbl_year_all, "anual_CIGEFI_TodoChorotega.rds")
 
+#tbl_year <- readRDS("anual_CIGEFI_ID.rds")
+#fwrite(tbl_year, file = "anual_CIGEFI_ID.csv")
 
 test <- tbl %>% filter(Scenario == "rpc85" & Variable == "pr") %>% 
   group_by(Year, Model) %>% summarise(pr_mean = max(Value)) %>% filter(Year >= 2030 & Year <= 2060)
 
 test <- tbl_year %>% filter(Year >= 2030 & Year <= 2060 & Scenario == "rpc45") %>% group_by(Year, Model) %>% summarise(tas_mean = mean(tas_mean))
 
-ggplot(test, aes(Year, tas_mean)) + geom_point(data=test, aes(colour = Model)) + stat_smooth(data=test, method="loess", level=0.8, se=F)
+ggplot(test, aes(Year, tas_mean)) + geom_line(data=test, aes(colour = Model)) + stat_smooth(data=test, method="loess", level=0.8, se=F)
 
 
 library(rgdal)
@@ -63,8 +60,12 @@ leaflet() %>%
 head(gridcells@data)
 tabla_shape <- gridcells@data
 tbl_year_id <- left_join(tbl_year, tabla_shape, by = c("Latitude" = "Lon", "Longitude" = "Lat"))
-tbl_year_id_gt2000 <- tbl_year_id %>% filter(Year >= 2000)
-saveRDS(tbl_year_id_gt2000, "anual_CIGEFI_ID.rds")
+tbl_year_id <- tbl_year_id %>% select(-xmin, -xmax, -ymin, -ymax)
+
+fwrite(tbl_year_id, file = "anual_CIGEFI_ID.csv")
+
+#tbl_year_id_gt2000 <- tbl_year_id %>% filter(Year >= 2000)
+#saveRDS(tbl_year_id_gt2000, "anual_CIGEFI_ID.rds")
 
 test <- tbl_year %>% filter(Year >= 2030 & Year <= 2060 & Scenario == "rpc45") %>% group_by(Year, Model) %>% summarise(tas_mean = mean(tas_mean))
 
@@ -72,18 +73,18 @@ ggplot(test, aes(Year, tas_mean)) + geom_line(data=test, aes(colour = Model)) + 
 
 #probando con data.table
 library(data.table)
-dtbl_year_id_gt2000 <- data.table(tbl_year_id_gt2000)
-test <- dtbl_year_id_gt2000[Year >= 2030 & Year <= 2060 & Scenario == "rpc45"]
+dtbl_year_id <- data.table(tbl_year_id)
+test <- dtbl_year_id[Year >= 2030 & Year <= 2060 & Scenario == "rpc45"]
 
-microbenchmark(dtbl_year_id_gt2000[Year >= 2030 & Year <= 2060 & Scenario == "rpc45" & id == 890])
+microbenchmark(dtbl_year_id[Year >= 2030 & Year <= 2060 & Scenario == "rpc45" & id == 890])
 
-microbenchmark(tbl_year_id_gt2000 %>% filter(Year >= 2030 & Year <= 2060 & Scenario == "rpc45" & id ==890))
+microbenchmark(tbl_year_id %>% filter(Year >= 2030 & Year <= 2060 & Scenario == "rpc45" & id ==890))
 
 
 #revision de variables
-library(stringr)
-tbl$archivo <- str_sub(tbl$grp, 24, -1)
-counts <- tbl %>% group_by(Model, Scenario, archivo) %>% count(Model)
+#library(stringr)
+#tbl$archivo <- str_sub(tbl$grp, 24, -1)
+#counts <- tbl %>% group_by(Model, Scenario, archivo) %>% count(Model)
 
 #calcular percentiles por celda usando datos históricos
 tbl_percentiles <- tbl_year %>% 
@@ -98,9 +99,9 @@ tbl_percentiles <- left_join(tbl_percentiles, tabla_shape, by = c("Latitude" = "
 
 saveRDS(tbl_percentiles, "percentiles_CIGEFI.rds")
 
-percentiles_CIGEFI_TodoChorotega <- anual_CIGEFI_TodoChorotega %>% 
+percentiles_CIGEFI_TodoChorotega <- tbl_year_all_clean %>% 
   filter(Year < 2000) %>% 
-  group_by() %>% 
+  ungroup() %>% 
   summarise("tas_95pctl"=quantile(tas_m, probs=0.95),
             "tas_5pctl"=quantile(tas_m, probs=0.05),
             "pr_95pctl"=quantile(pr_y, probs=0.95),
@@ -124,52 +125,58 @@ saveRDS(tbl_month, "mensual_CIGEFI_raw.rds")
 
 tbl_month <- readRDS("mensual_CIGEFI_raw.rds")
 
-tbl_month_gt2000 <- tbl_month %>% filter(Year >= 2000)
+#tbl_month_gt2000 <- tbl_month %>% filter(Year >= 2000)
 head(tbl_month_gt2000)
 
-tbl_month_gt2000_10years <- tbl_month_gt2000 %>% 
+tbl_month_10years <- tbl_month %>%
+  filter(Year >= 1980) %>% 
   group_by(Year %/% 10, Month, Longitude, Latitude, Model, Scenario) %>% 
   summarise(tas_mean = mean(tas_month), pr_mean = mean(pr_month)) %>% rename(period = `Year%/%10`)
-head(tbl_month_gt2000_5years)
-tbl_month_gt2000_10years <- collect(tbl_month_gt2000_10years)
+#head(tbl_month_gt2000_5years)
+#tbl_month_gt2000_10years <- collect(tbl_month_gt2000_10years)
 
-periods_10years <- tbl_month_gt2000_10years %>% group_by(as.integer(period)) %>% summarise(n())
-head(periods_5years)
-periods_10years <- collect(periods_10years)
+periods_10years <- tbl_month_10years %>% group_by(as.integer(period)) %>% summarise(n())
+#head(periods_5years)
+#periods_10years <- collect(periods_10years)
 
-years10 <- as.data.frame(seq(2000, 2090, 10))
-years10 <-years10 %>% rename(ini_year = `seq(2000, 2090, 10)`)
+years10 <- as.data.frame(seq(1980, 2090, 10))
+years10 <-years10 %>% rename(ini_year = `seq(1980, 2090, 10)`)
 years10 <- cbind(years10, periods_10years)
 years10 <- years10 %>% rename(period = `as.integer(period)`)
 
-tbl_month_gt2000_10years_ini_year <- left_join(tbl_month_gt2000_10years, years10, by="period") %>% ungroup() %>%
+tbl_month_10years_ini_year <- left_join(tbl_month_10years, years10, by="period") %>% ungroup() %>%
   select(-`n()`, -period)
 
-tbl_month_gt2000_10years_id <- left_join(tbl_month_gt2000_10years_ini_year, tabla_shape, by = c("Latitude" = "Lon", "Longitude" = "Lat"))
-tbl_month_gt2000_10years_id <- tbl_month_gt2000_10years_id %>% ungroup() %>% select(-Longitude, -Latitude, -xmin, -xmax, -ymin, -ymax)
+tbl_month_10years_id <- left_join(tbl_month_10years_ini_year, tabla_shape, by = c("Latitude" = "Lon", "Longitude" = "Lat"))
+tbl_month_10years_id <- tbl_month_10years_id %>% ungroup() %>% select(-Longitude, -Latitude, -xmin, -xmax, -ymin, -ymax)
 
-saveRDS(tbl_month_gt2000_10years_id, "mensual_CIGEFI.rds")
-fwrite(tbl_month_gt2000_10years_id, file = "mensual_CIGEFI.csv")
+#saveRDS(tbl_month_gt2000_10years_id, "mensual_CIGEFI.rds")
+fwrite(tbl_month_10years_id, file = "mensual_CIGEFI.csv")
 
 #para todas las celdas:
-tbl_month_gt2000_10years_all <- tbl_month_gt2000 %>% 
+tbl_month_10years_all <- tbl_month %>%
+  filter(Year >= 1980) %>% 
   group_by(Year %/% 10, Month, Model, Scenario) %>% 
   summarise(tas_mean = mean(tas_month), pr_mean = mean(pr_month)) %>% rename(period = `Year%/%10`)
 
-tbl_month_gt2000_5years_all_R <- collect(tbl_month_gt2000_5years_all)
+#tbl_month_gt2000_5years_all_R <- collect(tbl_month_gt2000_5years_all)
 
-periods_10years_all <- tbl_month_gt2000_10years_all %>% group_by(as.integer(period)) %>% summarise(n()) %>% rename(period = `as.integer(period)`)
+periods_10years_all <- tbl_month_10years_all %>% group_by(as.integer(period)) %>% summarise(n()) %>% rename(period = `as.integer(period)`)
+
+years10 <- as.data.frame(seq(1980, 2090, 10))
+years10 <-years10 %>% rename(ini_year = `seq(1980, 2090, 10)`)
+
 years10_all <- cbind(years10, periods_10years_all)
 
-tbl_month_gt2000_10years_all_ini_year <- left_join(tbl_month_gt2000_10years_all, years10_all, by="period") %>% ungroup() %>%
+tbl_month_10years_all_ini_year <- left_join(tbl_month_10years_all, years10_all, by="period") %>% ungroup() %>%
   select(-`n()`, -period)
 
-saveRDS(tbl_month_gt2000_10years_all_ini_year, "mensual_CIGEFI_TodoChorotega.rds")
+saveRDS(tbl_month_10years_all_ini_year, "mensual_CIGEFI_TodoChorotega.rds")
 
 #calcular 5 y 95 percentiles para datos históricos
-tbl_month_lt2000 <- collect( tbl_month %>% filter(Year < 2000))
-  
-tbl_percentiles_mes <- tbl_percentiles_mes %>%  
+tbl_month_lt2000 <- tbl_month %>% filter(Year < 2000)
+
+tbl_percentiles_mes <- tbl_month_lt2000 %>%  
   group_by(Month, Longitude, Latitude) %>%
   summarise("tas_95pctl"=quantile(tas_month, probs=0.95),
             "tas_5pctl"=quantile(tas_month, probs=0.05),
@@ -205,7 +212,7 @@ ggplot() + geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Mode
   labs(title = paste("Total de lluvia mensual"))
 
 #prueba con boxplots transparentes y puntos encima
-ggplot() + 
+gtest <- ggplot() + 
   geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Model), width = 0.15) +
   geom_boxplot(data = sel_mes, aes(x = Month, y = pr_mean, group = Month), outlier.colour=NA, fill=NA) +
   #geom_linerange(data=percentiles_mesChorotega, aes(x=Month, ymin=pr_5pct, ymax=pr_95pctl), linetype="dashed")
@@ -229,8 +236,27 @@ ggplot() + geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Mode
   scale_colour_discrete(name="Experimental\nCondition") +
   labs(title = paste("Total de lluvia mensual"))
 
+#tabla con todos los datos desde 1979 hasta 2100 para los modelos con datos para ambos escenarios
+tbl_year_clean <- tbl_year_id %>% filter(Model != "ccsm4_r3i1p1" & Model != "cesm1_cam5_r3i1p1")
+tbl_year_clean %>% group_by(Model) %>% tally()
+fwrite(tbl_year_clean, file = "anual_CIGEFI_ID.csv")
+
+tbl_year_all_clean <- tbl_year_clean %>% group_by(Year, Model, Scenario) %>% summarise(tas_m = mean(tas_mean), pr_y = mean(pr_year))
+saveRDS(tbl_year_all_clean, file = "anual_CIGEFI_TodoChorotega.rds")
+
 
 #funcion para hacer todos los gráficos
+
+#tendencia 
+tend_aNo <- "stat_smooth(data=seleccion, method=\"loess\", level=0.5, se=F) +"
+tend_mes <- "geom_smooth(data=sel_mes, aes(x = Month, y = pr_mean), method=\"loess\", level=0.5, se=F)"
+  
+#percentiles
+perc_aNo <- "geom_hline(yintercept = percentilesChorotega$tas_95pctl, linetype=\"dashed\") +"
+perc_mes <- "geom_hline(yintercept = percentilesChorotega$tas_5pctl, linetype=\"dashed\") +"
+    
+#boxplot_meses
+bplot_mes <- "geom_boxplot(data = sel_mes, aes(x = Month, y = pr_mean, group = Month), outlier.colour=NA, fill=NA) +"
 
 ggplot() + geom_line(data = test, aes(x = Year, y = tas_mean, colour = Model)) +
   stat_smooth(data=seleccion, method = "loess", level = 0.5, se = F) +
@@ -239,25 +265,16 @@ ggplot() + geom_line(data = test, aes(x = Year, y = tas_mean, colour = Model)) +
   labs(x = "Años", y = "Temperatura (C)") + 
   scale_colour_discrete(name="Modelos") +
   labs(
-    title = paste("Promedio anual de temperatura mensual")
-
-graficos <- function(datos1, datos2, datos3) {
-  g1 <- ggplot() + ggplot(seleccion, aes(x = Year, y = tas_m)) + geom_jitter(aes(colour = Model), width = 0.25) + 
-    geom_line(aes(colour = Year)) +
-    stat_smooth(data=seleccion, method="loess", level=0.5, se=F) +
-    geom_hline(yintercept = percentilesChorotega$tas_95pctl, linetype="dashed") +
-    geom_hline(yintercept = percentilesChorotega$tas_5pctl, linetype="dashed") +
-    labs(x = "Años", y = "Temperatura (C)") + 
-    scale_colour_discrete(name="Modelos") +
-    labs(
-      title = paste("Promedio anual de temperatura mensual")
-}
-
-
-#tabla con todos los datos desde 1979 hasta 2100 para los modelos con datos para ambos escenarios
-tbl_year_clean <- tbl_year_id %>% filter(Model != "ccsm4_r3i1p1" & Model != "cesm1_cam5_r3i1p1")
-tbl_year_clean %>% group_by(Model) %>% tally()
-fwrite(tbl_year_clean, file = "anual_CIGEFI_ID.csv")
-
-tbl_year_all_clean <- tbl_year_clean %>% group_by(Year, Model, Scenario) %>% summarise(tas_m = mean(tas_mean), pr_y = mean(pr_year))
-saveRDS(tbl_year_all_clean, file = "anual_CIGEFI_TodoChorotega.rds")
+    title = paste("Promedio anual de temperatura mensual"))
+    
+    graficos <- function(datos1, datos2, datos3) {
+      g1 <- ggplot() + ggplot(seleccion, aes(x = Year, y = tas_m)) + geom_jitter(aes(colour = Model), width = 0.25) + 
+        geom_line(aes(colour = Year)) +
+        stat_smooth(data=seleccion, method="loess", level=0.5, se=F) +
+        geom_hline(yintercept = percentilesChorotega$tas_95pctl, linetype="dashed") +
+        geom_hline(yintercept = percentilesChorotega$tas_5pctl, linetype="dashed") +
+        labs(x = "Años", y = "Temperatura (C)") + 
+        scale_colour_discrete(name="Modelos") +
+        labs(
+          title = paste("Promedio anual de temperatura mensual"))
+    }

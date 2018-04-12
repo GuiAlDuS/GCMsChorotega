@@ -5,7 +5,10 @@ library(grid)
 library(rgdal)
 library(leaflet)
 library(data.table)
+library(shinyWidgets)
+library(scales)
 
+#importar archivos
 anual_GCMs <- fread("anual_CIGEFI_ID.csv")
 anual_GCMs_Ch <- data.table(readRDS("anual_CIGEFI_TodoChorotega.rds"))
 gridcells <- readOGR(dsn = ".", layer = "Celdas_ubicaciones")
@@ -41,25 +44,44 @@ ui <- fluidPage(
       radioButtons("cp", "Seleccionar escenario futuro:",
                    choices = list("RCP 4.5" = "rpc45",
                                   "RCP 8.5" = "rpc85")),
-      checkboxGroupInput("modelos", "Seleccionar modelos a graficar:",
-                         choices = list("ccsm4_r1i1p1" = "ccsm4_r1i1p1", 
-                                        "ccsm4_r2i1p1" = "ccsm4_r2i1p1", 
-                                        "cesm1_cam5_r1i1p1" = "cesm1_cam5_r1i1p1",
-                                        "cesm1_cam5_r2i1p1" = "cesm1_cam5_r2i1p1",
-                                        "cmcc_cms_r1i1p1" = "cmcc_cms_r1i1p1",
-                                        "ec_earth_r2i1p1" = "ec_earth_r2i1p1",
-                                        "giss_e2_r_r1i1p1" = "giss_e2_r_r1i1p1",
-                                        "miroc5_r1i1p1" = "miroc5_r1i1p1",
-                                        "miroc5_r3i1p1" = "miroc5_r3i1p1",
-                                        "mpi_esm_lr_r1i1p1" = "mpi_esm_lr_r1i1p1",
-                                        "mpi_esm_lr_r2i1p1" = "mpi_esm_lr_r2i1p1",
-                                        "mpi_esm_lr_r3i1p1" = "mpi_esm_lr_r3i1p1"),
-                         selected = NULL),
+      pickerInput("modelos", "Seleccionar modelos a graficar:",
+                  choices = list("ccsm4_r1i1p1", 
+                                 "ccsm4_r2i1p1", 
+                                 "cesm1_cam5_r1i1p1",
+                                 "cesm1_cam5_r2i1p1",
+                                 "cmcc_cms_r1i1p1",
+                                 "ec_earth_r2i1p1",
+                                 "giss_e2_r_r1i1p1",
+                                 "miroc5_r1i1p1",
+                                 "miroc5_r3i1p1",
+                                 "mpi_esm_lr_r1i1p1",
+                                 "mpi_esm_lr_r2i1p1",
+                                 "mpi_esm_lr_r3i1p1"),
+                  selected = list("ccsm4_r1i1p1", 
+                                  "ccsm4_r2i1p1", 
+                                  "cesm1_cam5_r1i1p1",
+                                  "cesm1_cam5_r2i1p1",
+                                  "cmcc_cms_r1i1p1",
+                                  "ec_earth_r2i1p1",
+                                  "giss_e2_r_r1i1p1",
+                                  "miroc5_r1i1p1",
+                                  "miroc5_r3i1p1",
+                                  "mpi_esm_lr_r1i1p1",
+                                  "mpi_esm_lr_r2i1p1",
+                                  "mpi_esm_lr_r3i1p1"),
+                  options = list(
+                    `actions-box` = TRUE,
+                    `deselect-all-text` = "Ninguno",
+                    `select-all-text` = "Todos",
+                    `none-selected-text` = "No hay selección",
+                    `selected-text-format` = "count",
+                    `count-selected-text` = "{0} modelos seleccionados"),
+                  multiple = TRUE),
       sliderInput("aNo", "Seleccionar periodo de años:",
                   min = 1980, max = 2100, value = c(2030, 2060), step = 10, sep = ""),
       checkboxInput("loess", "Mostrar línea de tendencia.", value = F),
+      checkboxInput("percentiles", "Mostrar percentiles 5 y 95 de valores históricos modelados (1979 a 1999).", value = F),
       h5("Nota:"),
-      p("- Las líneas punteadas representan el rango entre los percentiles 5 y 95 de los datos históricos modelados (1979 a 1999)."),
       p("- Si no se selecciona una celda, los gráficos muestran los valores para el área que cubre todas las celdas."),
       p("- La línea de tendencia está calculada por medio de una regresión local (LOESS)."),
       p(""),
@@ -141,161 +163,99 @@ server <- function(input,output,session) {
 
   #graficos
   output$grafico1 <- renderPlot({
-    #funciones de selección
+    #funciones de selección para todas las celdas
     if(is.null(input$myMap_shape_click)) {
       seleccion <- anual_GCMs_Ch[Scenario == input$cp & 
+                                   Model %in% input$modelos &
                                    Year >= input$aNo[1] & 
                                    Year <= input$aNo[2]]
       
-      sel_mes <- mensual_GCMsChorotega[Scenario == input$cp&
-                                ini_year >= input$aNo[1] & 
-                                ini_year <= input$aNo[2]]
-     
-      if (input$loess == T) {
-        #grafico con línea de tenencia 
-        g1 <- ggplot(seleccion, aes(x = Year, y = tas_m)) + geom_line(aes(colour = Model)) + 
-          stat_smooth(data=seleccion, method="loess", level=0.5, se=F) +
-          geom_hline(yintercept = percentilesChorotega$tas_95pctl, linetype="dashed") +
-          geom_hline(yintercept = percentilesChorotega$tas_5pctl, linetype="dashed") +
-          labs(x = "Años", y = "Temperatura (C)") + 
-          scale_colour_discrete(name="Modelos") +
-          labs(
-            title = paste("Promedio anual de temperatura mensual")
-          )
-        g2 <- ggplot(seleccion, aes(x = Year, y = pr_y)) + geom_line(aes(colour = Model)) +
-          stat_smooth(data=seleccion, method="loess", level=0.5, se=F) +
-          geom_hline(yintercept = percentilesChorotega$pr_95pctl, linetype="dashed") +
-          geom_hline(yintercept = percentilesChorotega$pr_5pct, linetype="dashed") +
-          labs(x = "Años", y = "Lluvia (mm)") + 
-          labs(
-            title = paste("Total de lluvia anual")
-          )
-        g3 <- ggplot() + geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Model)) +
-          geom_smooth(data=sel_mes, aes(x = Month, y = pr_mean), method="loess", level=0.5, se=F) +
-          geom_linerange(data=percentiles_mesChorotega, aes(x=Month, ymin=pr_5pct, ymax=pr_95pctl), linetype="dashed") +
-          scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
-          labs(x = "Mes", y = "Lluvia (mm)") + 
-          labs(title = paste("Total de lluvia mensual")
-               )
-        g4 <- ggplot() + geom_jitter(data = sel_mes, aes(x = Month, y = tas_mean, colour = Model)) +
-          geom_smooth(data=sel_mes, aes(x = Month, y = tas_mean), method="loess", level=0.5, se=F) +
-          geom_linerange(data=percentiles_mesChorotega, aes(x=Month, ymin=tas_5pctl, ymax=tas_95pctl), linetype="dashed") +
-          scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
-          labs(x = "Mes", y = "Temperatura (C)") + 
-          labs(title = paste("Promedio de temperatura mensual")
-          )
+      sel_mes <- mensual_GCMsChorotega[Scenario == input$cp &
+                                         Model %in% input$modelos &
+                                         ini_year >= input$aNo[1] & 
+                                         ini_year <= input$aNo[2]-10]
+      
+      #graficos como objetos para todas las celdas
+      g1 <- ggplot(seleccion, aes(x = Year, y = tas_m)) + 
+        geom_line(aes(colour = Model)) +
+        labs(x = "Años", y = "Temperatura (C)") + 
+        scale_colour_discrete(name="Modelos") +
+        labs(title = paste("Promedio anual de temperatura mensual"))
+      g2 <- ggplot(seleccion, aes(x = Year, y = pr_y)) + 
+        geom_line(aes(colour = Model)) +
+        labs(x = "Años", y = "Lluvia (mm)") + 
+        labs(title = paste("Total de lluvia anual"))
+      g3 <- ggplot() + 
+        geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Model), width = 0.15) +
+        geom_boxplot(data = sel_mes, aes(x = Month, y = pr_mean, group = Month), outlier.colour=NA, fill=NA) +
+        scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
+        labs(x = "Mes", y = "Lluvia (mm)") + 
+        labs(title = paste("Total de lluvia mensual"))
+      g4 <- ggplot() + 
+        geom_jitter(data = sel_mes, aes(x = Month, y = tas_mean, colour = Model), width = 0.15) +
+        geom_boxplot(data = sel_mes, aes(x = Month, y = tas_mean, group = Month), outlier.colour=NA, fill=NA) +
+        scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
+        labs(x = "Mes", y = "Temperatura (C)") + 
+        labs(title = paste("Promedio de temperatura mensual"))
+      
+      #grafico en blanco si no hay selección de GCMs
+      if(is.null(input$modelos)){
+      } else if (input$loess == F) {
+        #gráfico sin línea de tendencia
         grid_arrange_shared_legend(g1,g4,g2,g3)
       } else {
-        #gráfico sin línea de tendencia
-        g1 <- ggplot(seleccion, aes(x = Year, y = tas_m)) + geom_line(aes(colour = Model)) +
-          labs(x = "Años", y = "Temperatura (C)") + 
-          geom_hline(yintercept = percentilesChorotega$tas_95pctl, linetype="dashed") +
-          geom_hline(yintercept = percentilesChorotega$tas_5pctl, linetype="dashed") +
-          scale_colour_discrete(name="Modelos") +
-          labs(
-            title = paste("Promedio anual de temperatura mensual")
-          )
-        g2 <- ggplot(seleccion, aes(x = Year, y = pr_y)) + geom_line(aes(colour = Model)) +
-          labs(x = "Años", y = "Lluvia (mm)") + 
-          geom_hline(yintercept = percentilesChorotega$pr_95pctl, linetype="dashed") +
-          geom_hline(yintercept = percentilesChorotega$pr_5pct, linetype="dashed") +
-          labs(
-            title = paste("Total de lluvia anual")
-          )
-        g3 <- ggplot() + geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Model)) +
-          geom_linerange(data=percentiles_mesChorotega, aes(x=Month, ymin=pr_5pct, ymax=pr_95pctl), linetype="dashed") +
-          scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
-          labs(x = "Mes", y = "Lluvia (mm)") + 
-          labs(
-            title = paste("Total de lluvia mensual")
-          )
-        g4 <- ggplot() + geom_jitter(data = sel_mes, aes(x = Month, y = tas_mean, colour = Model)) +
-          geom_linerange(data=percentiles_mesChorotega, aes(x=Month, ymin=tas_5pctl, ymax=tas_95pctl), linetype="dashed") +
-          scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
-          labs(x = "Mes", y = "Temperatura (C)") + 
-          labs(
-            title = paste("Promedio de temperatura mensual")
-          )
-        grid_arrange_shared_legend(g1,g4,g2,g3)
+      #grafico con línea de tenencia 
+      g1 <- g1 + stat_smooth(data=seleccion, method="loess", level=0.5, se=F)
+      g2 <- g2 + stat_smooth(data=seleccion, method="loess", level=0.5, se=F)
+      g3 <- g3 + geom_smooth(data=sel_mes, aes(x = Month, y = pr_mean), method="loess", level=0.5, se=F)
+      g4 <- g4 + geom_smooth(data=sel_mes, aes(x = Month, y = tas_mean), method="loess", level=0.5, se=F)
+      grid_arrange_shared_legend(g1,g4,g2,g3)
       }
-      
     } else {
-      seleccion <- anual_GCMs[(input$myMap_shape_click[1]) == id & 
+      #funciones de selección para celda seleccionada
+      seleccion <- anual_GCMs[(input$myMap_shape_click[1]) == id &
+                                Model %in% input$modelos &
                                 Scenario == input$cp & 
                                 Year >= input$aNo[1] & Year <= input$aNo[2]] 
       sel_percentil <- percentiles[(input$myMap_shape_click[1]) == id]
-      sel_mes <- mensual_GCMs[(input$myMap_shape_click[1]) == id & 
+      sel_mes <- mensual_GCMs[(input$myMap_shape_click[1]) == id &
+                                Model %in% input$modelos &
                                 Scenario == input$cp & 
-                                ini_year >= input$aNo[1] & ini_year <= input$aNo[2]]
+                                ini_year >= input$aNo[1] & ini_year <= input$aNo[2]-10]
       sel_percentiles_mes <- percentiles_mes %>% dplyr::filter((input$myMap_shape_click[1]) == id)
       
-      if (input$loess == T) {
+      #graficos como objetos para celdas seleccionadas
+      g1 <- ggplot(seleccion, aes(x = Year, y = tas_mean)) + geom_line(aes(colour = Model)) + 
+        scale_colour_discrete(name="Modelos") +
+        labs(x = "Años", y = "Temperatura (C)") + 
+        labs(title = paste("Promedio anual de temperatura mensual"))
+      g2 <- ggplot(seleccion, aes(x = Year, y = pr_year)) + geom_line(aes(colour = Model)) +
+        labs(x = "Años", y = "Lluvia (mm)") + 
+        labs(title = paste("Total de lluvia anual"))
+      g3 <- ggplot() + 
+        geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Model), width = 0.15) +
+        geom_boxplot(data = sel_mes, aes(x = Month, y = pr_mean, group = Month), outlier.colour=NA, fill=NA) +
+        scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
+        labs(x = "Mes", y = "Lluvia (mm)") + 
+        labs(title = paste("Total de lluvia mensual"))
+      g4 <- ggplot() + 
+        geom_jitter(data = sel_mes, aes(x = Month, y = tas_mean, colour = Model), width = 0.15) +
+        geom_boxplot(data = sel_mes, aes(x = Month, y = tas_mean, group = Month), outlier.colour=NA, fill=NA) +
+        scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
+        labs(x = "Mes", y = "Temperatura (C)") + 
+        labs(title = paste("Promedio de temperatura mensual"))
+
+      #grafico en blanco si no hay selección de GCMs
+      if(is.null(input$modelos)){
+      } else if (input$loess == F) {
         #funciones generales de gráfico 
-        g1 <- ggplot(seleccion, aes(x = Year, y = tas_mean)) + geom_line(aes(colour = Model)) + 
-          stat_smooth(data=seleccion, method="loess", level=0.5, se=F) +
-          geom_hline(yintercept = sel_percentil$tas_95pctl, linetype="dashed") +
-          geom_hline(yintercept = sel_percentil$tas_5pctl, linetype="dashed") +
-          scale_colour_discrete(name="Modelos") +
-          labs(x = "Años", y = "Temperatura (C)") + 
-          labs(
-            title = paste("Promedio anual de temperatura mensual")
-            )
-        g2 <- ggplot(seleccion, aes(x = Year, y = pr_year)) + geom_line(aes(colour = Model)) +
-          stat_smooth(data=seleccion, method="loess", level=0.5, se=F) +
-          geom_hline(yintercept = sel_percentil$pr_95pctl, linetype="dashed") +
-          geom_hline(yintercept = sel_percentil$pr_5pct, linetype="dashed") +
-          labs(x = "Años", y = "Lluvia (mm)") + 
-          labs(
-            title = paste("Total de lluvia anual")
-            )
-        g3 <- ggplot() + geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Model)) +
-          geom_smooth(data=sel_mes, aes(x = Month, y = pr_mean), method="loess", level=0.5, se=F) +
-          geom_linerange(data=sel_percentiles_mes, aes(x=Month, ymin=pr_5pct, ymax=pr_95pctl), linetype="dashed") +
-          scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
-          labs(x = "Mes", y = "Lluvia (mm)") + 
-          labs(
-            title = paste("Total de lluvia mensual")
-          )
-        g4 <- ggplot() + geom_jitter(data = sel_mes, aes(x = Month, y = tas_mean, colour = Model)) +
-          geom_smooth(data=sel_mes, aes(x = Month, y = tas_mean), method="loess", level=0.5, se=F) +
-          geom_linerange(data=sel_percentiles_mes, aes(x=Month, ymin=tas_5pctl, ymax=tas_95pctl), linetype="dashed") +
-          scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
-          labs(x = "Mes", y = "Temperatura (C)") + 
-          labs(
-            title = paste("Promedio de temperatura mensual")
-          )
         grid_arrange_shared_legend(g1,g4,g2,g3)
-        } else {
-          #gráfico sin línea de tendencia
-          g1 <- ggplot(seleccion, aes(x = Year, y = tas_mean)) + geom_line(aes(colour = Model)) +
-            labs(x = "Años", y = "Temperatura (C)") + 
-            geom_hline(yintercept = sel_percentil$tas_95pctl, linetype="dashed") +
-            geom_hline(yintercept = sel_percentil$tas_5pctl, linetype="dashed") +
-            scale_colour_discrete(name="Modelos") +
-            labs(
-              title = paste("Promedio anual de temperatura mensual")
-              )
-          g2 <- ggplot(seleccion, aes(x = Year, y = pr_year)) + geom_line(aes(colour = Model)) +
-            labs(x = "Años", y = "Lluvia (mm)") + 
-            geom_hline(yintercept = sel_percentil$pr_95pctl, linetype="dashed") +
-            geom_hline(yintercept = sel_percentil$pr_5pct, linetype="dashed") +
-            labs(
-              title = paste("Total de lluvia anual")
-              )
-          g3 <- ggplot() + geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Model)) +
-            geom_linerange(data=sel_percentiles_mes, aes(x=Month, ymin=pr_5pct, ymax=pr_95pctl), linetype="dashed") +
-            scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
-            labs(x = "Mes", y = "Lluvia (mm)") + 
-            labs(
-              title = paste("Total de lluvia mensual")
-            )
-          g4 <- ggplot() + geom_jitter(data = sel_mes, aes(x = Month, y = tas_mean, colour = Model)) +
-            geom_linerange(data=sel_percentiles_mes, aes(x=Month, ymin=tas_5pctl, ymax=tas_95pctl), linetype="dashed") +
-            scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
-            labs(x = "Mes", y = "Temperatura (C)") + 
-            labs(
-              title = paste("Promedio de temperatura mensual")
-            )
+        } else if (input$loess == T) {
+          #gráfico con línea de tendencia
+          g1 <- g1 + stat_smooth(data=seleccion, method="loess", level=0.5, se=F)
+          g2 <- g2 + stat_smooth(data=seleccion, method="loess", level=0.5, se=F)
+          g3 <- g3 + geom_smooth(data=sel_mes, aes(x = Month, y = pr_mean), method="loess", level=0.5, se=F)
+          g4 <- g4 + geom_smooth(data=sel_mes, aes(x = Month, y = tas_mean), method="loess", level=0.5, se=F)
           grid_arrange_shared_legend(g1,g4,g2,g3)
         }
     }
