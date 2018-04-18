@@ -87,6 +87,8 @@ microbenchmark(tbl_year_id %>% filter(Year >= 2030 & Year <= 2060 & Scenario == 
 #counts <- tbl %>% group_by(Model, Scenario, archivo) %>% count(Model)
 
 #calcular percentiles por celda usando datos históricos
+tbl_year <- readRDS("anual_CIGEFI.rds")
+
 tbl_percentiles <- tbl_year %>% 
   filter(Year < 2000) %>% 
   group_by(Longitude, Latitude) %>%
@@ -98,6 +100,7 @@ tbl_percentiles <- tbl_year %>%
 tbl_percentiles <- left_join(tbl_percentiles, tabla_shape, by = c("Latitude" = "Lon", "Longitude" = "Lat"))
 
 saveRDS(tbl_percentiles, "percentiles_CIGEFI.rds")
+
 
 percentiles_CIGEFI_TodoChorotega <- tbl_year_all_clean %>% 
   filter(Year < 2000) %>% 
@@ -212,16 +215,16 @@ ggplot() + geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Mode
   labs(title = paste("Total de lluvia mensual"))
 
 #prueba con boxplots transparentes y puntos encima
-gtest <- ggplot() + 
+ggplot() + 
   geom_jitter(data = sel_mes, aes(x = Month, y = pr_mean, colour = Model), width = 0.15) +
   geom_boxplot(data = sel_mes, aes(x = Month, y = pr_mean, group = Month), outlier.colour=NA, fill=NA) +
-  #geom_linerange(data=percentiles_mesChorotega, aes(x=Month, ymin=pr_5pct, ymax=pr_95pctl), linetype="dashed")
+  geom_linerange(data=percentiles_mesChorotega, aes(x=Month, ymin=pr_5pct, ymax=pr_95pctl), size = 10, alpha = 0.3) +
   scale_x_continuous(breaks=seq(1,12,1), labels=c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")) +
   labs(x = "Mes", y = "Lluvia (mm)") + 
   scale_colour_discrete(name="Modelos") +
   labs(title = paste("Total de lluvia mensual"))
 
-#-----#
+  #-----#
 mensual_GCMs <- fread("mensual_CIGEFI.csv")
 percentiles_mes <- readRDS("percentiles_CIGEFI_mensual.rds")
 
@@ -244,37 +247,21 @@ fwrite(tbl_year_clean, file = "anual_CIGEFI_ID.csv")
 tbl_year_all_clean <- tbl_year_clean %>% group_by(Year, Model, Scenario) %>% summarise(tas_m = mean(tas_mean), pr_y = mean(pr_year))
 saveRDS(tbl_year_all_clean, file = "anual_CIGEFI_TodoChorotega.rds")
 
+#cuadro para percentiles anuales
+percentilesChorotega <- readRDS("percentiles_CIGEFI_TodoChorotega.rds")
+anual_GCMs <- fread("anual_CIGEFI_ID.csv")
 
-#funcion para hacer todos los gráficos
+seleccion <- anual_GCMs %>% filter(Year >= 2030 & Year <= 2060 & Scenario == "rpc45") %>% group_by(Year, Model) %>% summarise(tas_mean = mean(tas_mean))
 
-#tendencia 
-tend_aNo <- "stat_smooth(data=seleccion, method=\"loess\", level=0.5, se=F) +"
-tend_mes <- "geom_smooth(data=sel_mes, aes(x = Month, y = pr_mean), method=\"loess\", level=0.5, se=F)"
-  
-#percentiles
-perc_aNo <- "geom_hline(yintercept = percentilesChorotega$tas_95pctl, linetype=\"dashed\") +"
-perc_mes <- "geom_hline(yintercept = percentilesChorotega$tas_5pctl, linetype=\"dashed\") +"
-    
-#boxplot_meses
-bplot_mes <- "geom_boxplot(data = sel_mes, aes(x = Month, y = pr_mean, group = Month), outlier.colour=NA, fill=NA) +"
+percentiles <- data.frame(2030, 2060, percentilesChorotega$tas_5pctl, percentilesChorotega$tas_95pctl)
+names(percentiles) <- c("xmini", "xmaxi", "ymini", "ymaxi")
 
-ggplot() + geom_line(data = test, aes(x = Year, y = tas_mean, colour = Model)) +
-  stat_smooth(data=seleccion, method = "loess", level = 0.5, se = F) +
-  geom_hline(yintercept = percentilesChorotega$tas_95pctl, linetype="dashed") +
-  geom_hline(yintercept = percentilesChorotega$tas_5pctl, linetype="dashed") +
-  labs(x = "Años", y = "Temperatura (C)") + 
-  scale_colour_discrete(name="Modelos") +
-  labs(
-    title = paste("Promedio anual de temperatura mensual"))
-    
-    graficos <- function(datos1, datos2, datos3) {
-      g1 <- ggplot() + ggplot(seleccion, aes(x = Year, y = tas_m)) + geom_jitter(aes(colour = Model), width = 0.25) + 
-        geom_line(aes(colour = Year)) +
-        stat_smooth(data=seleccion, method="loess", level=0.5, se=F) +
-        geom_hline(yintercept = percentilesChorotega$tas_95pctl, linetype="dashed") +
-        geom_hline(yintercept = percentilesChorotega$tas_5pctl, linetype="dashed") +
-        labs(x = "Años", y = "Temperatura (C)") + 
-        scale_colour_discrete(name="Modelos") +
-        labs(
-          title = paste("Promedio anual de temperatura mensual"))
-    }
+ggplot() + 
+  geom_line(data = seleccion, aes(x = Year, y = tas_mean, colour = Model)) +
+  geom_rect(data = data.frame(percentiles), 
+            aes(xmin = xmini, xmax = xmaxi, ymin = ymini, ymax = ymaxi), 
+            fill = "grey", alpha = 0.3)
+
+#prueba percentiles para celdas
+percentiles <- data.table(readRDS("percentiles_CIGEFI.rds"))
+anual_GCMs <- fread("anual_CIGEFI_ID.csv")
