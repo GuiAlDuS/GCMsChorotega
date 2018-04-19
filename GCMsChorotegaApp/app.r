@@ -18,6 +18,10 @@ mensual_GCMs <- fread("mensual_CIGEFI.csv")
 mensual_GCMsChorotega <- data.table(readRDS("mensual_CIGEFI_TodoChorotega.rds"))
 percentiles_mes <- readRDS("percentiles_CIGEFI_mensual.rds")
 percentiles_mesChorotega <- readRDS("percentiles_CIGEFI_mensual_TodoChorotega.rds")
+extremos_mes <- data.table(readRDS("extremos_CIGEFI_mensual.rds"))
+extremos_mesChorotega <- readRDS("extremos_CIGEFI_mensual_Chorotega.rds")
+extremos_anual <- data.table(readRDS("extremos_CIGEFI_anual.rds"))
+extremos_anualChorotega <- readRDS("extremos_CIGEFI_anual_Chorotega.rds")
 
 #funciones
 grid_arrange_shared_legend <- function(...) {
@@ -80,7 +84,7 @@ ui <- fluidPage(
       sliderInput("aNo", "Seleccionar periodo de años:",
                   min = 1980, max = 2100, value = c(2030, 2060), step = 10, sep = ""),
       checkboxInput("loess", "Mostrar línea de tendencia.", value = F),
-      checkboxInput("percentiles", "Mostrar rango entre los percentiles 5 y 95 de valores históricos modelados (1979 a 1999).", value = F),
+      checkboxInput("extremos", "Mostrar rango promedio de los valores históricos modelados (1979 a 1999).", value = F),
       h5("Nota:"),
       p("- Si no se selecciona una celda, los gráficos muestran los valores para el área que cubre todas las celdas."),
       p("- La línea de tendencia está calculada por medio de una regresión local (LOESS)."),
@@ -174,12 +178,12 @@ server <- function(input,output,session) {
                                          ini_year >= input$aNo[1] & 
                                          ini_year <= input$aNo[2]-10]
       
-      perc_ch <- data.frame(input$aNo[1], input$aNo[2], 
-                                percentilesChorotega$tas_5pctl, 
-                                percentilesChorotega$tas_95pctl, 
-                                percentilesChorotega$pr_5pct,
-                                percentilesChorotega$pr_95pctl)
-      names(perc_ch) <- c("xmin", "xmax", "tas_min", "tas_max", "pr_min", "pr_max")
+      extr_ch <- data.frame(input$aNo[1], input$aNo[2], 
+                                extremos_anualChorotega$tasmin_y, 
+                                extremos_anualChorotega$tasmax_y, 
+                                extremos_anualChorotega$prmin_y,
+                                extremos_anualChorotega$prmax_y)
+      names(extr_ch) <- c("xmin", "xmax", "tas_min", "tas_max", "pr_min", "pr_max")
       
       #graficos como objetos para todas las celdas
       g1 <- ggplot() + 
@@ -206,60 +210,62 @@ server <- function(input,output,session) {
       
       #grafico en blanco si no hay selección de GCMs
       if(is.null(input$modelos)){
-      } else if (input$loess == F && input$percentiles == F) {
+      } else if (input$loess == F && input$extremos == F) {
         #gráfico sin línea de tendencia
         grid_arrange_shared_legend(g1,g4,g2,g3)
-      } else if (input$loess == F && input$percentiles == T) {
+      } else if (input$loess == F && input$extremos == T) {
         g1 <- g1 +
-          geom_rect(data = perc_ch, 
+          geom_rect(data = extr_ch, 
                     aes(xmin = xmin, xmax = xmax, ymin = tas_min, ymax = tas_max), 
                     fill = "black", alpha = 0.15)
         g2 <- g2 + 
-          geom_rect(data = perc_ch, 
+          geom_rect(data = extr_ch, 
                     aes(xmin = xmin, xmax = xmax, ymin = pr_min, ymax = pr_max), 
                     fill = "black", alpha = 0.15)
-        g3 <- g3 + geom_linerange(data=percentiles_mesChorotega, aes(x=Month, ymin=pr_5pct, ymax=pr_95pctl), size = 10, alpha = 0.15)
-        g4 <- g4 + geom_linerange(data=percentiles_mesChorotega, aes(x=Month, ymin=tas_5pctl, ymax=tas_95pctl), size = 10, alpha = 0.15)
+        g3 <- g3 + geom_linerange(data=extremos_mesChorotega, aes(x=Month, ymin=prmin, ymax=prmax), size = 10, alpha = 0.15)
+        g4 <- g4 + geom_linerange(data=extremos_mesChorotega, aes(x=Month, ymin=tasmin, ymax=tasmax), size = 10, alpha = 0.15)
         grid_arrange_shared_legend(g1,g4,g2,g3)
-      } else if (input$loess == T && input$percentiles == F) {
+      } else if (input$loess == T && input$extremos == F) {
         g1 <- g1 + stat_smooth(data=seleccion, aes(x = Year, y = tas_m), method="loess", level=0.5, se=F) 
         g2 <- g2 + stat_smooth(data=seleccion, aes(x = Year, y = pr_y), method="loess", level=0.5, se=F)
         g3 <- g3 + geom_smooth(data=sel_mes, aes(x = Month, y = pr_mean), method="loess", level=0.5, se=F)
         g4 <- g4 + geom_smooth(data=sel_mes, aes(x = Month, y = tas_mean), method="loess", level=0.5, se=F)
         grid_arrange_shared_legend(g1,g4,g2,g3)
-      } else if (input$loess == T && input$percentiles == T) {
-        g1 <- g1 + geom_rect(data = perc_ch, 
+      } else if (input$loess == T && input$extremos == T) {
+        g1 <- g1 + geom_rect(data = extr_ch, 
                              aes(xmin = xmin, xmax = xmax, ymin = tas_min, ymax = tas_max), 
                              fill = "black", alpha = 0.15) +
           stat_smooth(data=seleccion, aes(x = Year, y = tas_m), method="loess", level=0.5, se=F)
-        g2 <- g2 + geom_rect(data = perc_ch, 
+        g2 <- g2 + geom_rect(data = extr_ch, 
                              aes(xmin = xmin, xmax = xmax, ymin = pr_min, ymax = pr_max), 
                              fill = "black", alpha = 0.15) +
           stat_smooth(data=seleccion, aes(x = Year, y = pr_y), method="loess", level=0.5, se=F)
         g3 <- g3 + geom_smooth(data=sel_mes, aes(x = Month, y = pr_mean), method="loess", level=0.5, se=F) +
-          geom_linerange(data=percentiles_mesChorotega, aes(x=Month, ymin=pr_5pct, ymax=pr_95pctl), size = 10, alpha = 0.2)
+          geom_linerange(data=extremos_mesChorotega, aes(x=Month, ymin=prmin, ymax=prmax), size = 10, alpha = 0.2)
         g4 <- g4 + geom_smooth(data=sel_mes, aes(x = Month, y = tas_mean), method="loess", level=0.5, se=F) +
-          geom_linerange(data=percentiles_mesChorotega, aes(x=Month, ymin=tas_5pctl, ymax=tas_95pctl), size = 10, alpha = 0.2)
+          geom_linerange(data=extremos_mesChorotega, aes(x=Month, ymin=tasmin, ymax=tasmax), size = 10, alpha = 0.2)
         grid_arrange_shared_legend(g1,g4,g2,g3)
       }
+      
+      
     } else {
       #funciones de selección para celda seleccionada
       seleccion <- anual_GCMs[(input$myMap_shape_click[1]) == id &
                                 Model %in% input$modelos &
                                 Scenario == input$cp & 
                                 Year >= input$aNo[1] & Year <= input$aNo[2]] 
-      sel_percentil <- percentiles[(input$myMap_shape_click[1]) == id]
+      sel_extr <- extremos_anual[(input$myMap_shape_click[1]) == id]
       sel_mes <- mensual_GCMs[(input$myMap_shape_click[1]) == id &
                                 Model %in% input$modelos &
                                 Scenario == input$cp & 
                                 ini_year >= input$aNo[1] & ini_year <= input$aNo[2]-10]
-      sel_percentiles_mes <- percentiles_mes %>% dplyr::filter((input$myMap_shape_click[1]) == id)
-      perc <- data.frame(input$aNo[1], input$aNo[2], 
-                         sel_percentil$tas_5pctl,
-                         sel_percentil$tas_95pctl, 
-                         sel_percentil$pr_5pct,
-                         sel_percentil$pr_95pctl)
-      names(perc) <- c("xmin", "xmax", "tas_min", "tas_max", "pr_min", "pr_max")
+      sel_extr_mes <- extremos_mes[(input$myMap_shape_click[1]) == id]
+      extr <- data.frame(input$aNo[1], input$aNo[2], 
+                         sel_extr$tasmin_y,
+                         sel_extr$tasmax_y, 
+                         sel_extr$prmin_y,
+                         sel_extr$prmax_y)
+      names(extr) <- c("xmin", "xmax", "tas_min", "tas_max", "pr_min", "pr_max")
       
       #graficos como objetos para celdas seleccionadas
       g1 <- ggplot() + 
@@ -286,43 +292,43 @@ server <- function(input,output,session) {
 
       #grafico en blanco si no hay selección de GCMs
       if(is.null(input$modelos)){
-      } else if (input$loess == F && input$percentiles == F) {
+      } else if (input$loess == F && input$extremos == F) {
         #funciones generales de gráfico 
         grid_arrange_shared_legend(g1,g4,g2,g3)
-        }else if (input$loess == F && input$percentiles == T) {
+        }else if (input$loess == F && input$extremos == T) {
           g1 <- g1 +
-            geom_rect(data = perc, 
+            geom_rect(data = extr, 
                       aes(xmin = xmin, xmax = xmax, ymin = tas_min, ymax = tas_max), 
                       fill = "black", alpha = 0.15)
           g2 <- g2 +
-            geom_rect(data = perc, 
+            geom_rect(data = extr, 
                       aes(xmin = xmin, xmax = xmax, ymin = pr_min, ymax = pr_max), 
                       fill = "black", alpha = 0.15)
           g3 <- g3 +
-            geom_linerange(data=sel_percentiles_mes, aes(x=Month, ymin=pr_5pct, ymax=pr_95pctl), size = 10, alpha = 0.2)
+            geom_linerange(data=sel_extr_mes, aes(x=Month, ymin=prmin, ymax=prmax), size = 10, alpha = 0.2)
           g4 <- g4 +
-            geom_linerange(data=sel_percentiles_mes, aes(x=Month, ymin=tas_5pctl, ymax=tas_95pctl), size = 10, alpha = 0.15)
+            geom_linerange(data=sel_extr_mes, aes(x=Month, ymin=tasmin, ymax=tasmax), size = 10, alpha = 0.15)
           grid_arrange_shared_legend(g1,g4,g2,g3)
-        } else if (input$loess == T && input$percentiles == F) {
+        } else if (input$loess == T && input$extremos == F) {
           #gráfico con línea de tendencia
           g1 <- g1 + stat_smooth(data=seleccion, aes(x = Year, y = tas_mean), method="loess", level=0.5, se=F)
           g2 <- g2 + stat_smooth(data=seleccion, aes(x = Year, y = pr_year), method="loess", level=0.5, se=F)
           g3 <- g3 + geom_smooth(data=sel_mes, aes(x = Month, y = pr_mean), method="loess", level=0.5, se=F)
           g4 <- g4 + geom_smooth(data=sel_mes, aes(x = Month, y = tas_mean), method="loess", level=0.5, se=F)
           grid_arrange_shared_legend(g1,g4,g2,g3)
-        } else if (input$loess == T && input$percentiles == T) {
+        } else if (input$loess == T && input$extremos == T) {
           g1 <- g1 + stat_smooth(data=seleccion, aes(x = Year, y = tas_mean), method="loess", level=0.5, se=F) +
-            geom_rect(data = perc, 
+            geom_rect(data = extr, 
                       aes(xmin = xmin, xmax = xmax, ymin = tas_min, ymax = tas_max), 
                       fill = "black", alpha = 0.15)
           g2 <- g2 + stat_smooth(data=seleccion, aes(x = Year, y = pr_year), method="loess", level=0.5, se=F) +
-            geom_rect(data = perc, 
+            geom_rect(data = extr, 
                       aes(xmin = xmin, xmax = xmax, ymin = pr_min, ymax = pr_max), 
                       fill = "black", alpha = 0.15)
           g3 <- g3 + geom_smooth(data=sel_mes, aes(x = Month, y = pr_mean), method="loess", level=0.5, se=F) +
-            geom_linerange(data=sel_percentiles_mes, aes(x=Month, ymin=pr_5pct, ymax=pr_95pctl), size = 10, alpha = 0.2)
+            geom_linerange(data=sel_extr_mes, aes(x=Month, ymin=prmin, ymax=prmax), size = 10, alpha = 0.2)
           g4 <- g4 + geom_smooth(data=sel_mes, aes(x = Month, y = tas_mean), method="loess", level=0.5, se=F) +
-            geom_linerange(data=sel_percentiles_mes, aes(x=Month, ymin=tas_5pctl, ymax=tas_95pctl), size = 10, alpha = 0.15)
+            geom_linerange(data=sel_extr_mes, aes(x=Month, ymin=tasmin, ymax=tasmax), size = 10, alpha = 0.15)
           grid_arrange_shared_legend(g1,g4,g2,g3)
         }
     }

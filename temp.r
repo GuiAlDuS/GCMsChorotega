@@ -265,3 +265,88 @@ ggplot() +
 #prueba percentiles para celdas
 percentiles <- data.table(readRDS("percentiles_CIGEFI.rds"))
 anual_GCMs <- fread("anual_CIGEFI_ID.csv")
+
+
+
+
+
+
+### calculo de rango por año para valores antes del 2000
+# calcular max y min por año
+tbl_year <- readRDS("anual_CIGEFI.rds")
+
+#para celdas
+library(rgdal)
+gridcells <- readOGR(dsn = ".", layer = "Celdas_ubicaciones")
+tabla_shape <- gridcells@data
+
+
+max_min_year_lt2000 <- tbl_year %>%
+  filter(Year < 2000) %>% 
+  group_by(Longitude, Latitude) %>% 
+  summarise("tasmax_y" = max(tas_mean),
+            "tasmin_y" = min(tas_mean),
+            "prmax_y" = max(pr_year),
+            "prmin_y" = min(pr_year))
+
+min_max_year_lt2000_id <- left_join(max_min_year_lt2000, tabla_shape, by = c("Latitude" = "Lon", "Longitude" = "Lat"))
+min_max_year_lt2000_id <- min_max_year_lt2000_id %>% select(-xmin, -xmax, -ymin, -ymax)
+
+saveRDS(min_max_year_lt2000_id,"extremos_CIGEFI_anual.rds")
+
+#para todo Chorotega
+max_min_year_lt2000_Ch <- tbl_year %>%
+  filter(Year < 2000) %>% 
+  group_by(Year, Model) %>%
+  summarise("tas_mean" = mean(tas_mean),
+            "pr_year" = mean(pr_year)) %>% 
+  group_by() %>% 
+  summarise("tasmax_y" = max(tas_mean),
+            "tasmin_y" = min(tas_mean),
+            "prmax_y" = max(pr_year),
+            "prmin_y" = min(pr_year))
+
+saveRDS(max_min_year_lt2000_Ch,"extremos_CIGEFI_anual_Chorotega.rds")
+
+
+
+### calculo de rango por mes para valores antes del 2000
+#calcular max y min por década para cada mes
+tbl_month <- readRDS("mensual_CIGEFI_raw.rds")
+
+#para celdas
+max_min_mes_lt2000 <- tbl_month %>% 
+  filter(Year < 2000) %>% 
+  group_by(Year %/% 10, Month, Longitude, Latitude, Model, Scenario) %>% 
+  summarise("tasm" = mean(tas_month),
+            "prm" = mean(pr_month)) %>% 
+  group_by(Month, Model, Longitude, Latitude) %>% 
+  summarise("tasm" = mean(tasm),
+            "prm" = mean(prm)) %>% 
+  group_by(Month, Longitude, Latitude) %>% 
+  summarise("tasmax" = max(tasm),
+            "tasmin" = min(tasm),
+            "prmax" = max(prm),
+            "prmin" = min(prm))
+
+max_min_mes_lt2000_id <- left_join(max_min_mes_lt2000, tabla_shape, by = c("Latitude" = "Lon", "Longitude" = "Lat"))
+max_min_mes_lt2000_id <- max_min_mes_lt2000_id %>% select(-xmin, -xmax, -ymin, -ymax)
+
+saveRDS(max_min_mes_lt2000_id,"extremos_CIGEFI_mensual.rds")
+
+#para todo Chorotega
+max_min_mes_lt2000_Ch <- tbl_month %>% 
+  filter(Year < 2000) %>% 
+  group_by(Year %/% 10, Month, Model, Scenario) %>% 
+  summarise("tasm" = mean(tas_month),
+            "prm" = mean(pr_month)) %>% 
+  group_by(Month, Model) %>% 
+  summarise("tasm" = mean(tasm),
+            "prm" = mean(prm)) %>% 
+  group_by(Month) %>% 
+  summarise("tasmax" = max(tasm),
+            "tasmin" = min(tasm),
+            "prmax" = max(prm),
+            "prmin" = min(prm))
+
+saveRDS(max_min_mes_lt2000_Ch,"extremos_CIGEFI_mensual_Chorotega.rds")
